@@ -5,39 +5,59 @@ view: monthly_report {
     select
       g.name as group_name,
       coalesce(count(user.id),0) as user ,
-      coalesce(count(s.user_id),0) as loggedin,
-      coalesce(count(shared.user_id),0) as shared
+      coalesce(count(new_user.id),0) as new_user ,
+      coalesce(count(s.user),0) as loggedin,
+      coalesce(count(shared.user),0) as shared
 
-      from (select company_id, id from user where status=0) as user
+      FROM
+      usergroup AS ug
+      INNER JOIN (
+                 select id, name, company_id from  `group`
+                where
+                {% condition company_id %} company_id {% endcondition %}
+                )  AS g
+
+      ON ug.group_id = g.id
+      LEFT OUTER JOIN
+         (select company_id, id from user
+          where
+          {% condition company_id %} company_id {% endcondition %} AND
+          status=0
+          ) as user
+      ON user.id = ug.user_id
+
+      LEFT OUTER JOIN
+         (select company_id, id from user
+          where
+          {% condition company_id %} company_id {% endcondition %} AND
+          {% condition date_range %} `created` {% endcondition %} AND
+          status=0
+          ) as new_user
+      ON new_user.id = ug.user_id
 
       left outer join (
-        select distinct user_id from pbdata.analytics_data_user_adoption_sign_in
+        select distinct user_id  as user from user as u,pbdata.analytics_data_user_adoption_sign_in as s
         where
 
-        {% condition company_id%} company_id {% endcondition %} AND
+        {% condition company_id%} s.company_id {% endcondition %} AND
         {% condition date_range%} `date` {% endcondition %} AND
-
-        signed_in = 1 ) as s
-        on s.user_id = user.id
+        u.status=0 AND
+        u.id = s.user_id AND
+         signed_in = 1 ) as s
+        on s.user = ug.user_id
 
       left outer join (
-        select distinct user_id from  pbdata.analytics_data_user_adoption_sign_in
+        select distinct user_id as user from user u, pbdata.analytics_data_user_adoption_sign_in as s
         where
 
-        {% condition company_id%} company_id {%endcondition %} AND
+        {% condition company_id%} u.company_id {%endcondition %} AND
         {% condition date_range%} `date` {% endcondition %} AND
+         u.status=0 AND
+        u.id = s.user_id AND
 
         shared=1 ) as shared
-        on shared.user_id = user.id
-      inner join
-      usergroup as ug
-      on ug. user_id = user.id
-      inner join
-      `group` as g
-      on ug.group_id = g.id
-      where
+        on shared.user = ug.user_id
 
-       {% condition company_id%} g.company_id {%endcondition %}
       group by g.name;
         ;;
   }
@@ -49,6 +69,11 @@ view: monthly_report {
     type: string
     sql: ${TABLE}.group_name ;;
 
+  }
+  dimension: new_user {
+    label: "new registered users"
+    type: number
+    sql: ${TABLE}.new_user ;;
   }
   dimension: user {
     label: "registered users"
