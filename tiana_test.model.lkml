@@ -11,3 +11,4 @@ explore: one_nine_ninety {}
 explore: monthly_report {}
 explore: pwc_monthly_report {}
 explore: pwc_p2 {}
+explore: sign_ins_and_email_updates {}
